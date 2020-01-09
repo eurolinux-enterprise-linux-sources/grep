@@ -2,7 +2,7 @@
 # Make sure all these programs work properly
 # when invoked with --help or --version.
 
-# Copyright (C) 2000-2010 Free Software Foundation, Inc.
+# Copyright (C) 2000-2014 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,16 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-test "$VERBOSE" = yes && set -x
-
 # Ensure that $SHELL is set to *some* value and exported.
 # This is required for dircolors, which would fail e.g., when
 # invoked via debuild (which removes SHELL from the environment).
 test "x$SHELL" = x && SHELL=/bin/sh
 export SHELL
 
-: ${srcdir=.}
-. "$srcdir/init.sh"
+. "${srcdir=.}/init.sh"; path_prepend_ ../src
 
 expected_failure_status_chroot=125
 expected_failure_status_env=125
@@ -59,12 +56,25 @@ expected_failure_status_egrep=2
 expected_failure_status_fgrep=2
 
 test "$built_programs" \
-  || { echo "$this_test: no programs built!?!" 1>&2; Exit 1; }
+  || fail_ "built_programs not specified!?!"
+
+test "$VERSION" \
+  || fail_ "set envvar VERSION; it is required for a PATH sanity-check"
+
+# Extract version from --version output of the first program
+for i in $built_programs; do
+  v=$(env $i --version | sed -n '1s/.* //p;q')
+  break
+done
+
+# Ensure that it matches $VERSION.
+test "x$v" = "x$VERSION" \
+  || fail_ "--version-\$VERSION mismatch"
 
 for lang in C fr da; do
   for i in $built_programs; do
 
-    # Skip `test'; it doesn't accept --help or --version.
+    # Skip 'test'; it doesn't accept --help or --version.
     test $i = test && continue;
 
     # false fails even when invoked with --help or --version.
@@ -74,7 +84,7 @@ for lang in C fr da; do
       continue
     fi
 
-    # The just-built install executable is always named `ginstall'.
+    # The just-built install executable is always named 'ginstall'.
     test $i = install && i=ginstall
 
     # Make sure they exit successfully, under normal conditions.
@@ -85,7 +95,7 @@ for lang in C fr da; do
     grep "$PACKAGE_BUGREPORT" h-$i > /dev/null || fail=1
     rm -f h-$i
 
-    # Make sure they fail upon `disk full' error.
+    # Make sure they fail upon 'disk full' error.
     if test -w /dev/full && test -c /dev/full; then
       env $i --help    >/dev/full 2>/dev/null && fail=1
       env $i --version >/dev/full 2>/dev/null && fail=1
@@ -97,7 +107,7 @@ for lang in C fr da; do
         : # ok
       else
         fail=1
-        echo "*** $i: bad exit status \`$status' (expected $expected)," 1>&2
+        echo "*** $i: bad exit status '$status' (expected $expected)," 1>&2
         echo "  with --help or --version output redirected to /dev/full" 1>&2
       fi
     fi
@@ -129,7 +139,7 @@ chown_setup () { args=--version; }
 mkfifo_setup () { args=--version; }
 mknod_setup () { args=--version; }
 # Punt on uptime, since it fails (e.g., failing to get boot time)
-# on some systems, and we shouldn't let that stop `make check'.
+# on some systems, and we shouldn't let that stop 'make check'.
 uptime_setup () { args=--version; }
 
 # Create a file in the current directory, not in $TMPDIR.
@@ -173,11 +183,21 @@ shred_setup () { args=$tmp_in; }
 touch_setup () { args=$tmp_in2; }
 truncate_setup () { args="--reference=$tmp_in $tmp_in2"; }
 
+mkid_setup () { printf 'f(){}\ntypedef int t;\n' > f.c; args=. ; }
+lid_setup () { args=; }
+fid_setup () { args=f.c; }
+fnid_setup () { args=; }
+xtokid_setup () { args=; }
+aid_setup () { args=f; }
+eid_setup () { args=--version; }
+gid_setup () { args=f; }
+defid_setup () { args=t; }
+
 basename_setup () { args=$tmp_in; }
 dirname_setup () { args=$tmp_in; }
 expr_setup () { args=foo; }
 
-# Punt, in case GNU `id' hasn't been installed yet.
+# Punt, in case GNU 'id' hasn't been installed yet.
 groups_setup () { args=--version; }
 
 pathchk_setup () { args=$tmp_in; }

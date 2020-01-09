@@ -2,44 +2,36 @@
 
 Summary: Pattern matching utilities
 Name: grep
-Version: 2.6.3
-Release: 6%{?dist}
+Version: 2.20
+Release: 3%{?dist}
 License: GPLv3+
 Group: Applications/Text
 Source: ftp://ftp.gnu.org/pub/gnu/grep/grep-%{version}.tar.xz
+# upstream ticket 39444
+Patch0: grep-2.20-man-fix-gs.patch
+# upstream ticket 39445
+Patch1: grep-2.20-help-align.patch
+# reverted grep behaviour to grep-2.6.3 to silently accept [:char_class:]
+# which is mostly wrong construct very probably resulting in scripts
+# not doing what they are intended to (the wanted construct is mostly
+# [[:char_class:]]), but we need it for users relying on this old behaviour
+Patch2: grep-2.20-no-warn-char-classes.patch
+# rhbz#799863
+Patch3: grep-2.20-w-multibyte-fix.patch
+# rhbz#1103270
+Patch4: grep-2.20-man-fixed-regexp-option.patch
+# rhbz#1193030
+Patch5: grep-2.20-pcre-backported-fixes.patch
+# backported from upstream
+Patch6: grep-2.20-CVE-2015-1345.patch
 URL: http://www.gnu.org/software/grep/
 Requires(post): /sbin/install-info
 Requires(preun): /sbin/install-info
-BuildRoot:	%(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
-BuildRequires: pcre-devel >= 3.9-10, texinfo, gettext
+BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
+BuildRequires: pcre-devel >= 7.8-7, texinfo, gettext
 BuildRequires: autoconf automake
-# Speedups DFA UTF-8 period patterns.
-# original name: 0001-dfa-optimize-UTF-8-period.patch
-Patch0: grep-2.6.3-dfa-optimize-period.patch
-# Speedups MBCSET ([a-z]) UTF-8 patterns.
-# original name: 0002-fall-back-to-glibc-matcher-if-a-MBCSET-is-found.patch
-Patch1: grep-2.6.3-glibc-matcher-fallback.patch
-# Deprecated --mmap option is now properly ignored.
-# 0003-grep-fix-mmap-not-being-ignored.patch
-Patch2: grep-2.6.3-mmap-option-fix.patch
-# Speedups -m and removes quadratic complexity when going to glibc.
-# 0004-dfa-convert-to-wide-character-line-by-line.patch
-Patch3: grep-2.6.3-dfa-convert-to-wide-char.patch
-# Speedups DFA [[:digit:]] and [[:xdigit:]] patterns.
-# 0005-dfa-speed-up-digit-and-xdigit.patch
-Patch4: grep-2.6.3-dfa-speedup-digit-xdigit.patch
-# Exit on first EPIPE error if SIGPIPE is blocked, rhbz#741452
-Patch5: grep-2.6.3-epipe-fix.patch
-# Fixes crash on grep -Fif /dev/null, rhbz#797934
-Patch6: grep-2.6.3-fif-null-fix.patch
-# Fixes heap overrun on specific REs, rhbz#715295
-Patch7: grep-2.6.3-dfa-heap-overrun-fix.patch
-# Fixes -i (case insensitive matching), rhbz#826997
-Patch8: grep-2.6.3-i-fix.patch
-# Fixes --include, rhbz#1040710
-Patch9: grep-2.6.3-include-fix.patch
-# Fixes UTF-8 in PCRE, rhbz#683753
-Patch10: grep-2.6.3-pcre-utf-8-fix.patch
+# https://fedorahosted.org/fpc/ticket/174
+Provides: bundled(gnulib)
 
 %description
 The GNU versions of commonly used grep utilities. Grep searches through
@@ -50,25 +42,31 @@ GNU grep is needed by many scripts, so it shall be installed on every system.
 
 %prep
 %setup -q
-%patch0 -p1 -b .dfa-optimize-period
-%patch1 -p1 -b .glibc-matcher-fallback
-%patch2 -p1 -b .mmap-option-fix
-%patch3 -p1 -b .dfa-convert-to-wide-char
-%patch4 -p1 -b .speedup-digit-xdigit
-%patch5 -p1 -b .epipe-fix
-%patch6 -p1 -b .fif-null-fix
-%patch7 -p1 -b .dfa-heap-overrun-fix
-%patch8 -p1 -b .i-fix
-%patch9 -p1 -b .include-fix
-%patch10 -p1 -b .pcre-utf-8-fix
+%patch0 -p1 -b .man-fix-gs
+%patch1 -p1 -b .help-align
+%patch2 -p1 -b .no-warn-char-classes
+%patch3 -p1 -b .w-multibyte-fix
+%patch4 -p1 -b .man-fixed-rexexp-option
+%patch5 -p1 -b .pcre-backported-fixes
+%patch6 -p1 -b .CVE-2015-1345
 
-chmod 755 tests/epipe
-chmod 755 tests/dfa-heap-overrun
-chmod 755 tests/turkish-I
-chmod 755 tests/turkish-I-without-dot
+chmod 755 tests/word-multibyte
+chmod 755 tests/pcre-invalid-utf8-input
+chmod 755 tests/pcre-utf8
+chmod 755 tests/kwset-abuse
 
 %build
-%configure --without-included-regex CPPFLAGS="-I%{_includedir}/pcre"
+%global BUILD_FLAGS $RPM_OPT_FLAGS
+
+# Currently gcc on ppc uses double-double arithmetic for long double and it
+# does not conform to the IEEE floating-point standard. Thus force
+# long double to be double and conformant.
+%ifarch ppc ppc64
+%global BUILD_FLAGS %{BUILD_FLAGS} -mlong-double-64
+%endif
+
+%configure --without-included-regex CPPFLAGS="-I%{_includedir}/pcre" \
+  CFLAGS="%{BUILD_FLAGS}"
 make %{?_smp_mflags}
 
 %install
@@ -94,7 +92,7 @@ if [ $1 = 0 ]; then
 fi
 
 %files -f %{name}.lang
-%defattr(-,root,root)
+%defattr(-,root,root,-)
 %doc ABOUT-NLS AUTHORS THANKS TODO NEWS README ChangeLog COPYING
 
 %{_bindir}/*
@@ -102,6 +100,30 @@ fi
 %{_mandir}/*/*
 
 %changelog
+* Tue Mar  3 2015 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-3
+- Updated pcre buildrequires to require pcre-devel >= 7.8-7
+  Related: rhbz#1193030
+
+* Mon Feb 16 2015 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-2
+- Fixed invalid UTF-8 byte sequence error in PCRE mode
+  (by pcre-backported-fixes patch)
+  Resolves: rhbz#1193030
+- Fixed buffer overrun for grep -F
+  Resolves: CVE-2015-1345
+- Fixed bogus date in the changelog
+
+* Tue Jan 27 2015 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-1
+- New version
+  Resolves: rhbz#1064668
+  Resolves: rhbz#982215
+  Resolves: rhbz#1126757
+  Resolves: rhbz#1167766
+  Resolves: rhbz#1171806
+- Fixed \w and \W behaviour in multibyte locales
+  Resolves: rhbz#799863
+- Documented --fixed-regexp option
+  Resolves: rhbz#1103270
+
 * Wed Mar 26 2014 Jaroslav Škarvada <jskarvad@redhat.com> - 2.6.3-6
 - Fixed UTF-8 in PCRE (pcre-utf-8-fix patch)
   Resolves: rhbz#683753
@@ -122,7 +144,7 @@ fi
 - Exit on first EPIPE if SIGPIPE is blocked (epipe-fix patch)
   Resolves: rhbz#741452
 
-* Tue May 06 2010 Jaroslav Škarvada <jskarvad@redhat.com> - 2.6.3-2
+* Thu May 06 2010 Jaroslav Škarvada <jskarvad@redhat.com> - 2.6.3-2
 - Added dfa-optimize-period patch (speedup for . patterns in UTF-8)
 - Added glibc-matcher-fallback patch (speedup for [a-z] patterns in UTF-8)
 - Added mmap-option-fix patch

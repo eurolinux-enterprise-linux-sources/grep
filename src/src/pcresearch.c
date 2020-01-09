@@ -1,5 +1,5 @@
 /* pcresearch.c - searching subroutines using PCRE for grep.
-   Copyright 2000, 2007, 2009-2010 Free Software Foundation, Inc.
+   Copyright 2000, 2007, 2009-2014 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -32,6 +32,12 @@ static pcre *cre;
 
 /* Additional information about the pattern.  */
 static pcre_extra *extra;
+
+# ifdef PCRE_STUDY_JIT_COMPILE
+static pcre_jit_stack *jit_stack;
+# else
+#  define PCRE_STUDY_JIT_COMPILE 0
+# endif
 #endif
 
 void
@@ -39,27 +45,29 @@ Pcompile (char const *pattern, size_t size)
 {
 #if !HAVE_LIBPCRE
   error (EXIT_TROUBLE, 0, "%s",
-	 _("support for the -P option is not compiled into "
-	   "this --disable-perl-regexp binary"));
+         _("support for the -P option is not compiled into "
+           "this --disable-perl-regexp binary"));
 #else
   int e;
   char const *ep;
-  char *re = xmalloc (4 * size + 7);
-  int flags = PCRE_MULTILINE | (match_icase ? PCRE_CASELESS : 0);
+  char *re = xnmalloc (4, size + 7);
+  int flags = (PCRE_MULTILINE
+               | (match_icase ? PCRE_CASELESS : 0)
+               | (using_utf8 () ? PCRE_UTF8 : 0));
   char const *patlim = pattern + size;
   char *n = re;
   char const *p;
   char const *pnul;
 
   /* FIXME: Remove these restrictions.  */
-  if (memchr(pattern, '\n', size))
+  if (memchr (pattern, '\n', size))
     error (EXIT_TROUBLE, 0, _("the -P option only supports a single pattern"));
 
   *n = '\0';
   if (match_lines)
-    strcpy (n, "^(");
+    strcpy (n, "^(?:");
   if (match_words)
-    strcpy (n, "\\b(");
+    strcpy (n, "(?<!\\w)(?:");
   n += strlen (n);
 
   /* The PCRE interface doesn't allow NUL bytes in the pattern, so
@@ -75,7 +83,7 @@ Pcompile (char const *pattern, size_t size)
       memcpy (n, p, pnul - p);
       n += pnul - p;
       for (p = pnul; pattern < p && p[-1] == '\\'; p--)
-	continue;
+        continue;
       n -= (pnul - p) & 1;
       strcpy (n, "\\000");
       n += 4;
@@ -85,7 +93,7 @@ Pcompile (char const *pattern, size_t size)
   n += patlim - p;
   *n = '\0';
   if (match_words)
-    strcpy (n, ")\\b");
+    strcpy (n, ")(?!\\w)");
   if (match_lines)
     strcpy (n, ")$");
 
@@ -93,20 +101,37 @@ Pcompile (char const *pattern, size_t size)
   if (!cre)
     error (EXIT_TROUBLE, 0, "%s", ep);
 
-  extra = pcre_study (cre, 0, &ep);
+  extra = pcre_study (cre, PCRE_STUDY_JIT_COMPILE, &ep);
   if (ep)
     error (EXIT_TROUBLE, 0, "%s", ep);
 
+# if PCRE_STUDY_JIT_COMPILE
+  if (pcre_fullinfo (cre, extra, PCRE_INFO_JIT, &e))
+    error (EXIT_TROUBLE, 0, _("internal error (should never happen)"));
+
+  if (e)
+    {
+      /* A 32K stack is allocated for the machine code by default, which
+         can grow to 512K if necessary. Since JIT uses far less memory
+         than the interpreter, this should be enough in practice.  */
+      jit_stack = pcre_jit_stack_alloc (32 * 1024, 512 * 1024);
+      if (!jit_stack)
+        error (EXIT_TROUBLE, 0,
+               _("failed to allocate memory for the PCRE JIT stack"));
+      pcre_assign_jit_stack (extra, NULL, jit_stack);
+    }
+# endif
   free (re);
-#endif
+#endif /* HAVE_LIBPCRE */
 }
 
 size_t
 Pexecute (char const *buf, size_t size, size_t *match_size,
-	  char const *start_ptr)
+          char const *start_ptr)
 {
 #if !HAVE_LIBPCRE
-  abort ();
+  /* We can't get here, because Pcompile would have been called earlier.  */
+  error (EXIT_TROUBLE, 0, _("internal error"));
   return -1;
 #else
   /* This array must have at least two elements; everything after that
@@ -133,6 +158,9 @@ Pexecute (char const *buf, size_t size, size_t *match_size,
       if (start_ptr && start_ptr >= line_end)
         continue;
 
+      if (INT_MAX < line_end - line_buf)
+        error (EXIT_TROUBLE, 0, _("exceeded PCRE's line length limit"));
+
       e = pcre_exec (cre, extra, line_buf, line_end - line_buf,
                      start_ofs < 0 ? 0 : start_ofs, 0,
                      sub, sizeof sub / sizeof *sub);
@@ -141,16 +169,31 @@ Pexecute (char const *buf, size_t size, size_t *match_size,
   if (e <= 0)
     {
       switch (e)
-	{
-	case PCRE_ERROR_NOMATCH:
-	  return -1;
+        {
+        case PCRE_ERROR_NOMATCH:
+          return -1;
 
-	case PCRE_ERROR_NOMEMORY:
-	  error (EXIT_TROUBLE, 0, _("memory exhausted"));
+        case PCRE_ERROR_NOMEMORY:
+          error (EXIT_TROUBLE, 0, _("memory exhausted"));
 
-	default:
-	  abort ();
-	}
+        case PCRE_ERROR_MATCHLIMIT:
+          error (EXIT_TROUBLE, 0,
+                 _("exceeded PCRE's backtracking limit"));
+
+        case PCRE_ERROR_BADUTF8:
+          error (EXIT_TROUBLE, 0,
+                 _("invalid UTF-8 byte sequence in input"));
+
+        default:
+          /* For now, we lump all remaining PCRE failures into this basket.
+             If anyone cares to provide sample grep usage that can trigger
+             particular PCRE errors, we can add to the list (above) of more
+             detailed diagnostics.  */
+          error (EXIT_TROUBLE, 0, _("internal PCRE error: %d"), e);
+        }
+
+      /* NOTREACHED */
+      return -1;
     }
   else
     {
@@ -160,18 +203,18 @@ Pexecute (char const *buf, size_t size, size_t *match_size,
       char const *buflim = buf + size;
       char eol = eolbyte;
       if (!start_ptr)
-	{
-	  /* FIXME: The case when '\n' is not found indicates a bug:
-	     Since grep is line oriented, the match should never contain
-	     a newline, so there _must_ be a newline following.
-	   */
-	  if (!(end = memchr (end, eol, buflim - end)))
-	    end = buflim;
-	  else
-	    end++;
-	  while (buf < beg && beg[-1] != eol)
-	    --beg;
-	}
+        {
+          /* FIXME: The case when '\n' is not found indicates a bug:
+             Since grep is line oriented, the match should never contain
+             a newline, so there _must_ be a newline following.
+           */
+          if (!(end = memchr (end, eol, buflim - end)))
+            end = buflim;
+          else
+            end++;
+          while (buf < beg && beg[-1] != eol)
+            --beg;
+        }
 
       *match_size = end - beg;
       return beg - buf;
