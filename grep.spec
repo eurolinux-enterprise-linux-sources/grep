@@ -3,7 +3,7 @@
 Summary: Pattern matching utilities
 Name: grep
 Version: 2.20
-Release: 3%{?dist}
+Release: 3%{?dist}.1
 License: GPLv3+
 Group: Applications/Text
 Source: ftp://ftp.gnu.org/pub/gnu/grep/grep-%{version}.tar.xz
@@ -24,6 +24,7 @@ Patch4: grep-2.20-man-fixed-regexp-option.patch
 Patch5: grep-2.20-pcre-backported-fixes.patch
 # backported from upstream
 Patch6: grep-2.20-CVE-2015-1345.patch
+Patch7: grep-2.20-egrep-fgrep-symlinks.patch
 URL: http://www.gnu.org/software/grep/
 Requires(post): /sbin/install-info
 Requires(preun): /sbin/install-info
@@ -49,6 +50,7 @@ GNU grep is needed by many scripts, so it shall be installed on every system.
 %patch4 -p1 -b .man-fixed-rexexp-option
 %patch5 -p1 -b .pcre-backported-fixes
 %patch6 -p1 -b .CVE-2015-1345
+%patch7 -p1 -b .egrep-fgrep-symlinks
 
 chmod 755 tests/word-multibyte
 chmod 755 tests/pcre-invalid-utf8-input
@@ -75,6 +77,12 @@ make %{?_smp_mflags} DESTDIR=$RPM_BUILD_ROOT install
 gzip $RPM_BUILD_ROOT%{_infodir}/grep*
 rm -f $RPM_BUILD_ROOT%{_infodir}/dir
 
+# Make egrep/fgrep symlinks
+pushd $RPM_BUILD_ROOT%{_bindir}
+ln -s grep egrep
+ln -s grep fgrep
+popd
+
 %find_lang %name
 
 %check
@@ -100,6 +108,10 @@ fi
 %{_mandir}/*/*
 
 %changelog
+* Tue Sep 15 2015 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-3.1
+- Made symlinks from egrep, fgrep
+  Resolves: rhbz#1263252
+
 * Tue Mar  3 2015 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-3
 - Updated pcre buildrequires to require pcre-devel >= 7.8-7
   Related: rhbz#1193030
