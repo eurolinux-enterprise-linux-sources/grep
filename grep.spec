@@ -3,7 +3,7 @@
 Summary: Pattern matching utilities
 Name: grep
 Version: 2.20
-Release: 5%{?dist}
+Release: 6%{?dist}
 License: GPLv3+
 Group: Applications/Text
 Source: ftp://ftp.gnu.org/pub/gnu/grep/grep-%{version}.tar.xz
@@ -25,8 +25,10 @@ Patch5: grep-2.20-pcre-backported-fixes.patch
 # backported from upstream
 Patch6: grep-2.20-CVE-2015-1345.patch
 Patch7: grep-2.20-egrep-fgrep-symlinks.patch
-# rhbz#1367309
+# rhbz#1256756
 Patch8: grep-2.20-legacy-r.patch
+# rhbz#1287074, backported from upstream
+Patch9: grep-2.20-long-pattern-speedup.patch
 URL: http://www.gnu.org/software/grep/
 Requires(post): /sbin/install-info
 Requires(preun): /sbin/install-info
@@ -54,6 +56,7 @@ GNU grep is needed by many scripts, so it shall be installed on every system.
 %patch6 -p1 -b .CVE-2015-1345
 %patch7 -p1 -b .egrep-fgrep-symlinks
 %patch8 -p1 -b .legacy-r
+%patch9 -p1 -b .long-pattern-speedup
 
 chmod 755 tests/word-multibyte
 chmod 755 tests/pcre-invalid-utf8-input
@@ -111,10 +114,14 @@ fi
 %{_mandir}/*/*
 
 %changelog
+* Tue Nov  1 2016 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-6
+- Speedup DFA for long patterns and fixed begline/endline matching
+  Resolves: rhbz#1287074
+
 * Mon Aug 15 2016 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-5
 - Added support for environmental variable GREP_LEGACY_R to enhance
   backward compatibility of -r switch behavior
-  Resolves: rhbz#1367309
+  Resolves: rhbz#1256756
 
 * Tue Sep 15 2015 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-4
 - Made symlinks from egrep, fgrep
