@@ -1,0 +1,77 @@
+diff --git a/src/pcresearch.c b/src/pcresearch.c
+index 2994e65..3539b58 100644
+--- a/src/pcresearch.c
++++ b/src/pcresearch.c
+@@ -25,6 +25,9 @@
+ #elif HAVE_PCRE_PCRE_H
+ # include <pcre/pcre.h>
+ #endif
++#if HAVE_LANGINFO_CODESET
++# include <langinfo.h>
++#endif
+ 
+ #if HAVE_LIBPCRE
+ /* Compiled internal form of a Perl regular expression.  */
+@@ -51,6 +54,11 @@ Pcompile (char const *pattern, size_t size)
+   char const *p;
+   char const *pnul;
+ 
++#if defined HAVE_LANGINFO_CODESET
++  if (!strcmp(nl_langinfo(CODESET), "UTF-8"))
++    flags |= PCRE_UTF8;
++#endif
++
+   /* FIXME: Remove these restrictions.  */
+   if (memchr(pattern, '\n', size))
+     error (EXIT_TROUBLE, 0, _("the -P option only supports a single pattern"));
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 58deaa2..2f99a69 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -49,6 +49,7 @@ TESTS =						\
+   max-count-vs-context				\
+   options.sh					\
+   pcre.sh					\
++  pcre-utf8					\
+   pcre-z					\
+   reversed-range-endpoints			\
+   sjis-mb					\
+diff --git a/tests/pcre-utf8 b/tests/pcre-utf8
+new file mode 100755
+index 0000000..b86b114
+--- /dev/null
++++ b/tests/pcre-utf8
+@@ -0,0 +1,33 @@
++#! /bin/sh
++# Ensure that, with -P, Unicode \p{} symbols are correctly matched.
++#
++# Copyright (C) 2001, 2006, 2009-2012 Free Software Foundation, Inc.
++#
++# Copying and distribution of this file, with or without modification,
++# are permitted in any medium without royalty provided the copyright
++# notice and this notice are preserved.
++
++. "${srcdir=.}/init.sh"; path_prepend_ ../src
++require_pcre_
++require_en_utf8_locale_
++
++fail=0
++
++echo '$' | LC_ALL=en_US.UTF-8 grep -qP '\p{S}' || exit 77
++
++euro='\xe2\x82\xac euro'
++printf "$euro\\n" > in || framework_failure_
++
++LC_ALL=en_US.UTF-8 grep -P '^\p{S}' in > out || fail=1
++compare out in || fail=1
++
++LC_ALL=en_US.UTF-8 grep -P '^. euro$' in > out2 || fail=1
++compare out2 in || fail=1
++
++LC_ALL=en_US.UTF-8 grep -oP '. euro' in > out3 || fail=1
++compare out3 in || fail=1
++
++LC_ALL=en_US.UTF-8 grep -P '^\P{S}' in > out4
++compare out4 /dev/null || fail=1
++
++Exit $fail

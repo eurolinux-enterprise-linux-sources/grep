@@ -1,0 +1,107 @@
+diff --git a/src/main.c b/src/main.c
+index 0ccf6eb..cea245c 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -349,6 +349,7 @@ unsigned char eolbyte;
+ /* The name the program was run with, stripped of any leading path. */
+ static char const *filename;
+ static int errseen;
++static int write_error_seen;
+ 
+ /* How to handle directories.  */
+ static enum
+@@ -383,6 +384,15 @@ suppressible_error (char const *mesg, int errnum)
+   errseen = 1;
+ }
+ 
++/* If there has already been a write error, don't bother closing
++   standard output, as that might elicit a duplicate diagnostic.  */
++static void
++clean_up_stdout (void)
++{
++  if (! write_error_seen)
++    close_stdout ();
++}
++
+ /* Convert STR to a positive integer, storing the result in *OUT.
+    STR must be a valid context length argument; report an error if it
+    isn't.  */
+@@ -839,7 +849,10 @@ prline (char const *beg, char const *lim, int sep)
+     fwrite (beg, 1, lim - beg, stdout);
+ 
+   if (ferror (stdout))
+-    error (0, errno, _("writing output"));
++    {
++      write_error_seen = 1;
++      error (EXIT_TROUBLE, 0, _("write error"));
++    }
+ 
+   lastout = lim;
+ 
+@@ -1769,7 +1782,7 @@ main (int argc, char **argv)
+ #endif
+ 
+   exit_failure = EXIT_TROUBLE;
+-  atexit (close_stdout);
++  atexit (clean_up_stdout);
+ 
+   prepend_default_options (getenv ("GREP_OPTIONS"), &argc, &argv);
+   setmatcher (NULL);
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 17c675d..adeb379 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -34,6 +34,7 @@ TESTS =						\
+   char-class-multibyte				\
+   dfaexec-multibyte				\
+   empty						\
++  epipe						\
+   ere.sh					\
+   euc-mb					\
+   fedora					\
+diff --git a/tests/Makefile.in b/tests/Makefile.in
+--- a/tests/Makefile.in
++++ b/tests/Makefile.in
+@@ -34,6 +34,7 @@ TESTS =						\
+   char-class-multibyte				\
+   dfaexec-multibyte				\
+   empty						\
++  epipe						\
+   ere.sh					\
+   euc-mb					\
+   fedora					\
+@@ -1192,6 +1192,8 @@ dfaexec-multibyte.log: dfaexec-multibyte
+ 	@p='dfaexec-multibyte'; $(am__check_pre) $(LOG_COMPILE) "$$tst" $(am__check_post)
+ empty.log: empty
+ 	@p='empty'; $(am__check_pre) $(LOG_COMPILE) "$$tst" $(am__check_post)
++epipe.log: epipe
++	@p='epipe'; $(am__check_pre) $(LOG_COMPILE) "$$tst" $(am__check_post)
+ ere.sh.log: ere.sh
+ 	@p='ere.sh'; $(am__check_pre) $(LOG_COMPILE) "$$tst" $(am__check_post)
+ euc-mb.log: euc-mb
+diff --git a/tests/epipe b/tests/epipe
+new file mode 100755
+index 0000000..336d994
+--- /dev/null
++++ b/tests/epipe
+@@ -0,0 +1,20 @@
++#!/bin/sh
++# Check that a write failure with errno == EPIPE
++# doesn't cause grep to issue multiple "write error" diagnostics.
++
++. "${srcdir=.}/init.sh"; path_prepend_ ../src
++
++if
++   (
++     ${AWK-awk} 'BEGIN { for (i=0; i<1000000; i++) print i; }' /dev/null 3>&- |
++     (trap '' PIPE; exec grep . 2>&3 3>&-) |
++     :
++   ) 3>&1 | (
++     read line1 && echo >&2 "$line1" &&
++     read line2 && echo >&2 "$line2"
++   )
++then fail=1
++else fail=0
++fi
++
++Exit $fail
