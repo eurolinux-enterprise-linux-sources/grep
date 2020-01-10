@@ -1,5 +1,5 @@
 # Customize maint.mk                           -*- makefile -*-
-# Copyright (C) 2009-2012 Free Software Foundation, Inc.
+# Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -51,7 +51,7 @@ export VERBOSE = yes
 # 1127556 9e
 export XZ_OPT = -6e
 
-old_NEWS_hash = f2a68de3cf2aff0b4164738e6e537d88
+old_NEWS_hash = 194c77a94c1652647d0abbc66c0c553f
 
 # Many m4 macros names once began with 'jm_'.
 # Make sure that none are inadvertently reintroduced.
@@ -86,7 +86,8 @@ exclude_file_name_regexp--sc_bindtextdomain = ^tests/get-mb-cur-max\.c$$
 exclude_file_name_regexp--sc_prohibit_strcmp = /colorize-.*\.c$$
 exclude_file_name_regexp--sc_prohibit_xalloc_without_use = ^src/kwset\.c$$
 exclude_file_name_regexp--sc_prohibit_tab_based_indentation = \
-  (Makefile|\.(am|mk)$$|^gl/lib/.*\.c\.diff$$)
-exclude_file_name_regexp--sc_space_tab = ^gl/lib/.*\.c\.diff$$
+  (Makefile|\.(am|mk)$$)
 exclude_file_name_regexp--sc_error_message_uppercase = ^src/dfa\.c$$
 exclude_file_name_regexp--sc_prohibit_strncpy = ^src/dfa\.c$$
+
+exclude_file_name_regexp--sc_prohibit_doubled_word = ^tests/count-newline$$

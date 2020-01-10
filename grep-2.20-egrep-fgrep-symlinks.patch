@@ -1,0 +1,82 @@
+--- a/src/Makefile.am	
++++ a/src/Makefile.am	
+@@ -56,7 +56,8 @@ egrep fgrep: egrep.sh Makefile
+ 	sed -e 's|[@]SHELL@|$(SHELL)|g' \
+ 	    -e "$$edit_substring" \
+ 	    -e "s|[@]grep@|$$grep|g" \
+-	    -e "s|[@]option@|$$option|g" <$(srcdir)/egrep.sh >$@-t
++	    -e "s|[@]option@|$$option|g" \
++	    -e "s|[@]cmd@|$@|g" <$(srcdir)/egrep.sh >$@-t
+ 	$(AM_V_at)chmod +x $@-t
+ 	$(AM_V_at)mv $@-t $@
+ 
+--- a/src/Makefile.in	
++++ a/src/Makefile.in	
+@@ -1541,7 +1541,8 @@ egrep fgrep: egrep.sh Makefile
+ 	sed -e 's|[@]SHELL@|$(SHELL)|g' \
+ 	    -e "$$edit_substring" \
+ 	    -e "s|[@]grep@|$$grep|g" \
+-	    -e "s|[@]option@|$$option|g" <$(srcdir)/egrep.sh >$@-t
++	    -e "s|[@]option@|$$option|g" \
++	    -e "s|[@]cmd@|$@|g" <$(srcdir)/egrep.sh >$@-t
+ 	$(AM_V_at)chmod +x $@-t
+ 	$(AM_V_at)mv $@-t $@
+ 
+--- a/src/egrep.sh	
++++ a/src/egrep.sh	
+@@ -1,5 +1,6 @@ 
+ #!@SHELL@
+ grep=grep
++unset _EXECOPT _GREPOPT
+ case $0 in
+   */*)
+     dir=${0%/*}
+@@ -8,4 +9,9 @@ case $0 in
+       grep=@grep@
+     fi;;
+ esac
+-exec $grep @option@ "$@"
++if [ "$GREP_LEGACY_EGREP_FGREP_PS" = 1 ]; then
++  _EXECOPT="-a @cmd@"
++else
++  _GREPOPT=@option@
++fi
++exec $_EXECOPT $grep $_GREPOPT "$@"
+--- a/src/grep.c	
++++ a/src/grep.c	
+@@ -26,6 +26,7 @@ 
+ #include <fcntl.h>
+ #include <inttypes.h>
+ #include <stdio.h>
++#include <string.h>
+ #include "system.h"
+ 
+ #include "argmatch.h"
+@@ -1938,6 +1939,7 @@ fgrep_to_grep_pattern (size_t len, char const *keys,
+ int
+ main (int argc, char **argv)
+ {
++  char *ptr_c;
+   char *keys;
+   size_t keycc, oldcc, keyalloc;
+   int with_filenames;
+@@ -1984,6 +1986,19 @@ main (int argc, char **argv)
+   compile = matchers[0].compile;
+   execute = matchers[0].execute;
+ 
++  /* Check if executed through symlinks egrep/fgrep */
++  if (argv[0] != NULL)
++    {
++      ptr_c = strchrnul(argv[0], ' ');
++      if (ptr_c - argv[0] >= 5)
++        {
++          if (strncmp(ptr_c - 5, "egrep", 5) == 0)
++            setmatcher ("egrep");
++          else if (strncmp(ptr_c - 5, "fgrep", 5) == 0)
++            setmatcher ("fgrep");
++        }
++    }
++
+   while (prev_optind = optind,
+          (opt = get_nondigit_option (argc, argv, &default_context)) != -1)
+     switch (opt)
