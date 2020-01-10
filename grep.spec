@@ -2,7 +2,7 @@
 
 Summary: Pattern matching utilities
 Name: grep
-Version: 2.16
+Version: 2.20
 Release: 1%{?dist}
 License: GPLv3+
 Group: Applications/Text
@@ -10,11 +10,11 @@ Source: ftp://ftp.gnu.org/pub/gnu/grep/grep-%{version}.tar.xz
 Source1: colorgrep.sh
 Source2: colorgrep.csh
 Source3: GREP_COLORS
-Patch1: grep-2.16-gnulib-tests-rm-f.patch
+Source4: grepconf.sh
 # upstream ticket 39444
-Patch2: grep-2.16-man-fix-gs.patch
+Patch0: grep-2.20-man-fix-gs.patch
 # upstream ticket 39445
-Patch3: grep-2.16-help-align.patch
+Patch1: grep-2.20-help-align.patch
 URL: http://www.gnu.org/software/grep/
 Requires(post): /sbin/install-info
 Requires(preun): /sbin/install-info
@@ -33,9 +33,8 @@ GNU grep is needed by many scripts, so it shall be installed on every system.
 
 %prep
 %setup -q
-%patch1 -p1 -b .gnulib-tests-rm-f
-%patch2 -p1 -b .man-fix-gs
-%patch3 -p1 -b .help-align
+%patch0 -p1 -b .man-fix-gs
+%patch1 -p1 -b .help-align
 
 %build
 %global BUILD_FLAGS $RPM_OPT_FLAGS
@@ -59,6 +58,7 @@ rm -f $RPM_BUILD_ROOT%{_infodir}/dir
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/profile.d
 install -pm 644 %{SOURCE1} %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/profile.d
 install -pm 644 %{SOURCE3} $RPM_BUILD_ROOT%{_sysconfdir}
+install -Dpm 755 %{SOURCE4} $RPM_BUILD_ROOT%{_libexecdir}/grepconf.sh
 
 %find_lang %name
 
@@ -85,9 +85,14 @@ fi
 %config(noreplace) %{_sysconfdir}/GREP_COLORS
 %{_infodir}/*.info*.gz
 %{_mandir}/*/*
+%{_libexecdir}/grepconf.sh
 
 %changelog
-* Tue Feb 04 2014 Jan Grulich <jgrulich@redhat.com< - 2.16-1
+* Fri Sep  5 2014 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-1
+- New version
+  Resolves: rhbz#1123005
+
+* Tue Feb 04 2014 Jan Grulich <jgrulich@redhat.com> - 2.16-1
 - Update to 2.16
 - Resolves: rhbz#1050916
 - Resolves: rhbz#1050919

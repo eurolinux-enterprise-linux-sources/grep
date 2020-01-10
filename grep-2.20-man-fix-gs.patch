@@ -1,5 +1,5 @@
 diff --git a/doc/grep.in.1 b/doc/grep.in.1
-index d91de8c..9e8d8d2 100644
+index 58a6c0e..3e6a8cf 100644
 --- a/doc/grep.in.1
 +++ b/doc/grep.in.1
 @@ -377,7 +377,7 @@ Print
@@ -46,11 +46,11 @@ index d91de8c..9e8d8d2 100644
  .SS "File and Directory Selection"
  .TP
  .BR \-a ", " \-\^\-text
-diff --git a/src/main.c b/src/main.c
-index 44090be..7c1bd60 100644
---- a/src/main.c
-+++ b/src/main.c
-@@ -1621,6 +1621,8 @@ Context control:\n\
+diff --git a/src/grep.c b/src/grep.c
+index 7c0f8a8..0fcc272 100644
+--- a/src/grep.c
++++ b/src/grep.c
+@@ -1602,6 +1602,8 @@ Context control:\n\
  "));
        printf (_("\
    -NUM                      same as --context=NUM\n\
