@@ -1,8 +1,8 @@
-diff --git a/src/grep.c b/src/grep.c
-index 0fcc272..2208a4e 100644
---- a/src/grep.c
-+++ b/src/grep.c
-@@ -1579,16 +1579,19 @@ Output control:\n\
+diff --git a/src/main.c b/src/main.c
+index 7c1bd60..6b7a932 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -1598,16 +1598,19 @@ Output control:\n\
    -D, --devices=ACTION      how to handle devices, FIFOs and sockets;\n\
                              ACTION is 'read' or 'skip'\n\
    -r, --recursive           like --directories=recurse\n\

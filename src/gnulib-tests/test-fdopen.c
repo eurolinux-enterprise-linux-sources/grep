@@ -29,21 +29,28 @@ SIGNATURE_CHECK (fdopen, FILE *, (int, const char *));
 int
 main (void)
 {
-  /* Test behavior on failure.  POSIX makes it hard to check for
-     failure, since the behavior is not well-defined on invalid file
-     descriptors, so try fdopen 1000 times and if that's not enough to
-     fail due to EMFILE, so be it.  */
+  /* Test behaviour for invalid file descriptors.  */
+  {
+    FILE *fp;
 
-  int i;
-  for (i = 0; i < 1000; i++)
-    {
-      errno = 0;
-      if (! fdopen (STDOUT_FILENO, "w"))
-        {
-          ASSERT (errno != 0);
-          break;
-        }
-    }
+    errno = 0;
+    fp = fdopen (-1, "r");
+    if (fp == NULL)
+      ASSERT (errno == EBADF);
+    else
+      fclose (fp);
+  }
+  {
+    FILE *fp;
+
+    close (99);
+    errno = 0;
+    fp = fdopen (99, "r");
+    if (fp == NULL)
+      ASSERT (errno == EBADF);
+    else
+      fclose (fp);
+  }
 
   return 0;
 }
