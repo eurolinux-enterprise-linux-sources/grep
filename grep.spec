@@ -3,7 +3,7 @@
 Summary: Pattern matching utilities
 Name: grep
 Version: 2.20
-Release: 1%{?dist}
+Release: 2%{?dist}
 License: GPLv3+
 Group: Applications/Text
 Source: ftp://ftp.gnu.org/pub/gnu/grep/grep-%{version}.tar.xz
@@ -15,11 +15,19 @@ Source4: grepconf.sh
 Patch0: grep-2.20-man-fix-gs.patch
 # upstream ticket 39445
 Patch1: grep-2.20-help-align.patch
+# rhbz#1159012
+Patch2: grep-2.20-w-multibyte-fix.patch
+# rhbz#1103259
+Patch3: grep-2.20-man-fixed-regexp-option.patch
+# rhbz#1217080
+Patch4: grep-2.20-pcre-backported-fixes.patch
+# rhbz#1194315
+Patch5: grep-2.20-CVE-2015-1345.patch
 URL: http://www.gnu.org/software/grep/
 Requires(post): /sbin/install-info
 Requires(preun): /sbin/install-info
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
-BuildRequires: pcre-devel >= 3.9-10, texinfo, gettext
+BuildRequires: pcre-devel >= 7.8-7, texinfo, gettext
 BuildRequires: autoconf automake
 # https://fedorahosted.org/fpc/ticket/174
 Provides: bundled(gnulib)
@@ -35,6 +43,15 @@ GNU grep is needed by many scripts, so it shall be installed on every system.
 %setup -q
 %patch0 -p1 -b .man-fix-gs
 %patch1 -p1 -b .help-align
+%patch2 -p1 -b .w-multibyte-fix
+%patch3 -p1 -b .man-fixed-rexexp-option
+%patch4 -p1 -b .pcre-backported-fixes
+%patch5 -p1 -b .CVE-2015-1345
+
+chmod 755 tests/word-multibyte
+chmod 755 tests/pcre-invalid-utf8-input
+chmod 755 tests/pcre-utf8
+chmod 755 tests/kwset-abuse
 
 %build
 %global BUILD_FLAGS $RPM_OPT_FLAGS
@@ -88,6 +105,19 @@ fi
 %{_libexecdir}/grepconf.sh
 
 %changelog
+* Wed Apr 29 2015 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-2
+- Fixed invalid UTF-8 byte sequence error in PCRE mode
+  (by pcre-backported-fixes patch)
+  Resolves: rhbz#1217080
+- Fixed buffer overrun for grep -F
+  Resolves: CVE-2015-1345
+- Fixed \w and \W behaviour in multibyte locales
+  Resolves: rhbz#1159012
+- Documented --fixed-regexp option
+  Resolves: rhbz#1103259
+- Updated pcre buildrequires to require pcre-devel >= 7.8-7
+  Related: rhbz#1217080
+
 * Fri Sep  5 2014 Jaroslav Škarvada <jskarvad@redhat.com> - 2.20-1
 - New version
   Resolves: rhbz#1123005
